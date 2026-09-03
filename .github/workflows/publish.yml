@@ -49,7 +49,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: activepieces
-        run: bun install --frozen-lockfile
+        run: bun install --no-frozen-lockfile
 
       - name: Put the workspace binaries on PATH
         run: echo "$GITHUB_WORKSPACE/activepieces/node_modules/.bin" >> "$GITHUB_PATH"
