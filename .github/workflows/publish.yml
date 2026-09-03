@@ -1,0 +1,65 @@
+name: Publish to npm
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+env:
+  ACTIVEPIECES_REF: e130d06ce49180bf7c01472be132ac34f16c1725
+  PIECE_DIR: packages/pieces/community/asyntai
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the piece
+        uses: actions/checkout@v4
+        with:
+          path: piece
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Fetch Activepieces at the pinned commit
+        run: |
+          git init activepieces
+          cd activepieces
+          git remote add origin https://github.com/activepieces/activepieces.git
+          git fetch --depth 1 origin "$ACTIVEPIECES_REF"
+          git checkout FETCH_HEAD
+
+      - name: Copy the piece into the monorepo
+        run: |
+          mkdir -p "activepieces/$PIECE_DIR"
+          cp -r piece/src "activepieces/$PIECE_DIR/"
+          cp piece/package.json piece/README.md "activepieces/$PIECE_DIR/"
+          cp piece/tsconfig.json piece/tsconfig.lib.json "activepieces/$PIECE_DIR/"
+
+      - name: Register the package path
+        run: node piece/scripts/register-path.js activepieces
+
+      - name: Install dependencies
+        working-directory: activepieces
+        run: bun install --frozen-lockfile
+
+      - name: Put the workspace binaries on PATH
+        run: echo "$GITHUB_WORKSPACE/activepieces/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Run the piece tests
+        working-directory: activepieces/packages/pieces/community/asyntai
+        run: npx vitest run
+
+      - name: Build, bundle and publish
+        working-directory: activepieces
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm run publish-piece asyntai
